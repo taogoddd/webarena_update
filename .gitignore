@@ -161,3 +161,4 @@ config_files*/test.json
 # ignore file containing openai key
 env_script.sh
 sample_result
+test
