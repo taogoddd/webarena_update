@@ -157,3 +157,6 @@ config_files*/*7.json
 config_files*/*8.json
 config_files*/*9.json
 config_files*/test.json
+
+# env script ignore
+env_script.sh
