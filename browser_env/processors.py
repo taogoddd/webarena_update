@@ -649,21 +649,311 @@ class TextObervationProcessor(ObservationProcessor):
             center_y / self.viewport_size["height"],
         )
 
+# modify the class for set of mark prompting
+# class ImageObservationProcessor(ObservationProcessor):
+#     def __init__(self, observation_type: str):
+#         self.observation_type = observation_type
+#         self.observation_tag = "image"
+#         self.meta_data = create_empty_metadata()
+
+#     def process(self, page: Page, client: CDPSession) -> npt.NDArray[np.uint8]:
+#         try:
+#             screenshot = png_bytes_to_numpy(page.screenshot())
+#         except:
+#             page.wait_for_event("load")
+#             screenshot = png_bytes_to_numpy(page.screenshot())
+#         return screenshot
 
 class ImageObservationProcessor(ObservationProcessor):
-    def __init__(self, observation_type: str):
+    def __init__(self, observation_type: str, current_view_port_only: bool, viewport_size: ViewportSize):
         self.observation_type = observation_type
         self.observation_tag = "image"
         self.meta_data = create_empty_metadata()
+        self.current_view_port_only = current_view_port_only
+        self.viewport_size = viewport_size
+    
+    def fetch_browser_info(
+        self,
+        page: Page,
+        client: CDPSession,
+    ) -> BrowserInfo:
+        # extract domtree
+        tree = client.send(
+            "DOMSnapshot.captureSnapshot",
+            {
+                "computedStyles": [],
+                "includeDOMRects": True,
+                "includePaintOrder": True,
+            },
+        )
 
-    def process(self, page: Page, client: CDPSession) -> npt.NDArray[np.uint8]:
+        # calibrate the bounds, in some cases, the bounds are scaled somehow
+        bounds = tree["documents"][0]["layout"]["bounds"]
+        b = bounds[0]
+        n = b[2] / self.viewport_size["width"]
+        bounds = [[x / n for x in bound] for bound in bounds]
+        tree["documents"][0]["layout"]["bounds"] = bounds
+
+        # extract browser info
+        win_top_bound = page.evaluate("window.pageYOffset")
+        win_left_bound = page.evaluate("window.pageXOffset")
+        win_width = page.evaluate("window.screen.width")
+        win_height = page.evaluate("window.screen.height")
+        win_right_bound = win_left_bound + win_width
+        win_lower_bound = win_top_bound + win_height
+        device_pixel_ratio = page.evaluate("window.devicePixelRatio")
+        assert device_pixel_ratio == 1.0, "devicePixelRatio is not 1.0"
+
+        config: BrowserConfig = {
+            "win_top_bound": win_top_bound,
+            "win_left_bound": win_left_bound,
+            "win_width": win_width,
+            "win_height": win_height,
+            "win_right_bound": win_right_bound,
+            "win_lower_bound": win_lower_bound,
+            "device_pixel_ratio": device_pixel_ratio,
+        }
+
+        # assert len(tree['documents']) == 1, "More than one document in the DOM tree"
+        info: BrowserInfo = {"DOMTree": tree, "config": config}
+
+        return info
+    
+    def tag_elements(self, page: Page):
+        # JavaScript to tag operatable elements
         try:
-            screenshot = png_bytes_to_numpy(page.screenshot())
-        except:
-            page.wait_for_event("load")
-            screenshot = png_bytes_to_numpy(page.screenshot())
-        return screenshot
+            tag_elem_dict = page.evaluate("""
+                                          (()=>{
+                                          let labels = [];
+                                          let selector_id_table = {};
+                                                          var generateQuerySelector = function(el) {
+    function cssEscape(value) {
+    if (!value) return '';
+    // Escape all CSS special characters, including the colon.
+    return value.replace(/([!"#$%&'()*+,./:;<=>?@[\]^`{|}~])/g, '\\$&');
+}
 
+    function getChildIndex(el) {
+        var siblings = Array.from(el.parentNode.children);
+        var sameTagSiblings = siblings.filter(sibling => sibling.tagName === el.tagName);
+        return sameTagSiblings.indexOf(el);
+    }
+
+    if (el.tagName.toLowerCase() === "html") {
+        return "HTML";
+    }
+
+    var str = el.tagName;
+    var idPresent = false; // Add a flag to check if an ID is present
+
+    if (el.id !== "") {
+        str += "#" + cssEscape(el.id);
+        idPresent = true; // Set the flag to true if there's an ID
+    }
+
+    if (el.className) {
+        var classes = el.className.split(/\s+/).filter(Boolean); // Filter out empty strings
+        for (var i = 0; i < classes.length; i++) {
+            str += "." + cssEscape(classes[i]);
+        }
+    }
+
+    // Only add :nth-of-type() if no ID is present
+    if (!idPresent) {
+        str += ":nth-of-type(" + (getChildIndex(el) + 1) + ")";
+    }
+    
+    // Use '>' combinator if parent is not 'HTML'
+    var parentSelector = generateQuerySelector(el.parentNode);
+    return parentSelector === "HTML" ? str : parentSelector + " > " + str;
+}
+
+
+
+function unmarkPage() {
+  for(const label of labels) {
+    document.body.removeChild(label);
+  }
+
+  labels = [];
+}
+function markPage() {
+  unmarkPage();
+  
+  var bodyRect = document.body.getBoundingClientRect();
+
+  var items = Array.prototype.slice.call(
+    document.querySelectorAll('*')
+  ).map(function(element) {
+    var vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    var vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+    
+    var rects = [...element.getClientRects()].filter(bb => {
+      var center_x = bb.left + bb.width / 2;
+      var center_y = bb.top + bb.height / 2;
+      var elAtCenter = document.elementFromPoint(center_x, center_y);
+
+      return elAtCenter === element || element.contains(elAtCenter) 
+    }).map(bb => {
+      const rect = {
+        left: Math.max(0, bb.left),
+        top: Math.max(0, bb.top),
+        right: Math.min(vw, bb.right),
+        bottom: Math.min(vh, bb.bottom)
+      };
+      return {
+        ...rect,
+        width: rect.right - rect.left,
+        height: rect.bottom - rect.top
+      }
+    });
+
+    var area = rects.reduce((acc, rect) => acc + rect.width * rect.height, 0);
+
+    return {
+      element: element,
+      include: 
+        (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.tagName === "SELECT") ||
+        (element.tagName === "BUTTON" || element.tagName === "A" || (element.onclick != null) || window.getComputedStyle(element).cursor == "pointer") ||
+        (element.tagName === "IFRAME" || element.tagName === "VIDEO")
+      ,
+      area,
+      rects,
+      text: element.textContent.trim().replace(/\s{2,}/g, ' ')
+    };
+  }).filter(item =>
+    item.include && (item.area >= 20)
+  );
+
+  // Only keep inner clickable items
+  items = items.filter(x => !items.some(y => x.element.contains(y.element) && !(x == y)))
+
+  // Function to generate random colors
+  function getRandomColor() {
+    var letters = '0123456789ABCDEF';
+    var color = '#';
+    for (var i = 0; i < 6; i++) {
+      color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+  }
+
+  // Lets create a floating border on top of these elements that will always be visible
+  items.forEach(function(item, index) {
+    selector_id_table[index.toString()] = item.rects;
+    item.rects.forEach((bbox) => {
+      newElement = document.createElement("div");
+      var borderColor = getRandomColor();
+      newElement.style.outline = `2px dashed ${borderColor}`;
+      newElement.style.position = "fixed";
+      newElement.style.left = bbox.left + "px";
+      newElement.style.top = bbox.top + "px";
+      newElement.style.width = bbox.width + "px";
+      newElement.style.height = bbox.height + "px";
+      newElement.style.pointerEvents = "none";
+      newElement.style.boxSizing = "border-box";
+      newElement.style.zIndex = 2147483647;
+      // newElement.style.background = `${borderColor}80`;
+      
+      // Add floating label at the corner
+      var label = document.createElement("span");
+      label.textContent = index;
+      label.style.position = "absolute";
+      label.style.top = "-19px";
+      label.style.left = "0px";
+      label.style.background = borderColor;
+      label.style.color = "white";
+      label.style.padding = "2px 4px";
+      label.style.fontSize = "12px";
+      label.style.borderRadius = "2px";
+      newElement.appendChild(label);
+      
+      document.body.appendChild(newElement);
+      labels.push(newElement);
+      // item.element.setAttribute("-ai-label", label.textContent);
+    });
+  })
+return selector_id_table;
+}
+return markPage();
+                                          })()
+                                          
+""")
+        except Exception as e:
+            tag_elem_dict = {}
+            raise Exception(f"Error tagging elements: {e}")
+        self.meta_data["tag_elem_dict"] = tag_elem_dict
+
+    def remove_tags(self, page: Page):
+        try:
+            page.evaluate("""
+            (() => {
+                const tags = document.querySelectorAll('span[style*="background: yellow"]');
+                for (const tag of tags) {
+                    tag.remove();
+                }
+            })();
+            """)
+        except:
+            raise Exception("Error removing tags")
+    
+    def process(self, page: Page, client: CDPSession) -> npt.NDArray[np.uint8]:
+        try:            
+            browser_info = self.fetch_browser_info(page, client)
+            self.browser_config = browser_info["config"]
+            # tag clickable elements before taking screenshot
+            self.tag_elements(page)
+            png_screenshot = page.screenshot(full_page=not self.current_view_port_only)
+            screenshot = png_bytes_to_numpy(png_screenshot)
+            # generate time stamp as the image name and save the image
+            
+
+        except Exception as e:
+            page.wait_for_event("load")
+            png_screenshot = page.screenshot(full_page=not self.current_view_port_only)
+            screenshot = png_bytes_to_numpy(png_screenshot)
+        
+        finally:
+            self.remove_tags(page)
+
+        return screenshot
+    
+    def get_element_center_by_selector(self, page: Page, selector: str) -> tuple[float, float]:
+        box = page.locator(selector=selector).bounding_box()
+        x, y, width, height = box['x'], box["y"], box["width"], box["height"]
+        browser_config = self.browser_config
+        b_x, b_y = (
+            browser_config["win_left_bound"],
+            browser_config["win_upper_bound"],
+        )
+        center_x = (x - b_x) + width / 2
+        center_y = (y - b_y) + height / 2
+
+        print(self.viewport_size["width"])
+        print(self.viewport_size["height"])
+        return (
+            center_x / self.viewport_size["width"],
+            center_y / self.viewport_size["height"],
+        )
+    
+    def get_element_center_from_bounding_box(self, bounding_box: dict) -> tuple[float, float]:
+        left, top, width, height = bounding_box["left"], bounding_box["top"], bounding_box["width"], bounding_box["height"]
+        center_x, center_y = left + width / 2, top + height / 2
+        return (
+            center_x / self.viewport_size["width"],
+            center_y / self.viewport_size["height"],
+        )
+    
+    def get_element_center(self, element_id: str) -> tuple[float, float]:
+        node_info = self.obs_nodes_info[element_id]
+        node_bound = node_info["union_bound"]
+        x, y, width, height = node_bound
+        center_x = x + width / 2
+        center_y = y + height / 2
+        return (
+            center_x / self.viewport_size["width"],
+            center_y / self.viewport_size["height"],
+        )
 
 class ObservationHandler:
     """Main entry point to access all observation processor"""
@@ -681,7 +971,7 @@ class ObservationHandler:
             text_observation_type, current_viewport_only, viewport_size
         )
         self.image_processor = ImageObservationProcessor(
-            image_observation_type
+            image_observation_type, current_viewport_only, viewport_size
         )
         self.viewport_size = viewport_size
 

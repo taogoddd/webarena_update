@@ -3,6 +3,7 @@ from .providers.hf_utils import generate_from_huggingface_completion
 from .providers.openai_utils import (
     generate_from_openai_chat_completion,
     generate_from_openai_completion,
+    generate_from_4v_chat_completion,
 )
 from .utils import call_llm
 

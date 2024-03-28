@@ -12,6 +12,7 @@ import aiolimiter
 import openai
 import openai.error
 from tqdm.asyncio import tqdm_asyncio
+import requests
 
 
 def retry_with_exponential_backoff(  # type: ignore
@@ -283,4 +284,56 @@ def fake_generate_from_openai_chat_completion(
     openai.api_key = os.environ["OPENAI_API_KEY"]
     openai.organization = os.environ.get("OPENAI_ORGANIZATION", "")
     answer = "Let's think step-by-step. This page shows a list of links and buttons. There is a search box with the label 'Search query'. I will click on the search box to type the query. So the action I will perform is \"click [60]\"."
+    return answer
+
+def generate_from_4v_chat_completion(
+    messages: list[dict[str, str]],
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    top_p: float,
+    context_length: int,
+    stop_token: str | None = None,
+) -> str:
+    # if "OPENAI_API_KEY" not in os.environ:
+    #     raise ValueError(
+    #         "OPENAI_API_KEY environment variable must be set when using OpenAI API."
+    #     )
+    # openai.api_key = os.environ["OPENAI_API_KEY"]
+    # response = openai.ChatCompletion.create(  # type: ignore
+    #     model="gpt-4-vision-preview",
+    #     messages=messages,
+    #     temperature=temperature,
+    #     max_tokens=max_tokens,
+    #     top_p=top_p,
+    #     api_base = "https://api.openai.com/v1"
+    # )
+    # answer: str = response["choices"][0]["message"]["content"]
+    # return answer
+
+
+    # get api_key from env
+    if "OPENAI_API_KEY" not in os.environ:
+        raise ValueError(
+            "OPENAI_API_KEY environment variable must be set when using OpenAI API."
+        )
+    api_key = os.environ["OPENAI_API_KEY"]
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    payload = {
+        "model": "gpt-4-vision-preview",
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "top_p": top_p,
+    }
+    try:
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        res = response.json()
+        answer: str = res["choices"][0]['message']['content']
+    except Exception as e:
+        print(e)
+        answer = ""
     return answer

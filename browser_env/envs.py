@@ -102,7 +102,8 @@ class ScriptBrowserEnv(Env[dict[str, Observation], Action]):
                 self.main_observation_type = "text"
             case "image":
                 self.image_observation_type = observation_type
-                self.text_observation_type = ""  # type: ignore[assignment]
+                # need to assign a correct value (e.g.html) to text_observation_type to eliminate the error
+                self.text_observation_type = "accessibility_tree"  # type: ignore[assignment]
                 self.main_observation_type = "image"
             case _:
                 raise ValueError(

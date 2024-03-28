@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+import numpy as np
 
 import openai
 
@@ -69,8 +70,9 @@ def config() -> argparse.Namespace:
         default=0,
         help="Slow down the browser by the specified amount",
     )
+    # here, for set of mark prompting, we need to use seperate grounding method, so here we distinguish it from the other action sets
     parser.add_argument(
-        "--action_set_tag", default="id_accessibility_tree", help="Action type"
+        "--action_set_tag", default="set_of_mark", help="Action type"
     )
     parser.add_argument(
         "--observation_type",
@@ -149,6 +151,8 @@ def config() -> argparse.Namespace:
 
     # logging related
     parser.add_argument("--result_dir", type=str, default="")
+    parser.add_argument("--record_dir", default="records", type=str)
+
     args = parser.parse_args()
 
     # check the whether the action space is compatible with the observation space
@@ -162,6 +166,17 @@ def config() -> argparse.Namespace:
 
     return args
 
+# helper function to save np array to image
+def save_np_to_image(np_array: np.ndarray, path: str)->None:
+    from PIL import Image
+    image = Image.fromarray(np_array)
+    # Extract directory from the provided path
+    dir_path = os.path.dirname(path)
+    # Check whether directory exists, if not, create it
+    if not os.path.exists(dir_path) and dir_path != '':
+        os.makedirs(dir_path)
+    image.save(path)
+    return image
 
 def early_stop(
     trajectory: Trajectory, max_steps: int, thresholds: dict[str, int]
@@ -246,6 +261,8 @@ def test(
     )
 
     for config_file in config_file_list:
+        # parse the id from config_file: config_files/{id}.json
+        id = os.path.basename(config_file).split(".")[0]
         try:
             render_helper = RenderHelper(
                 config_file, args.result_dir, args.action_set_tag
@@ -285,11 +302,23 @@ def test(
             agent.reset(config_file)
             trajectory: Trajectory = []
             obs, info = env.reset(options={"config_file": config_file})
+            step_count = 0
+
+            # store the image locally and load it later into the prompt of gpt-4v
+            try:
+                image_path = f"{args.result_dir}/images/{id}/step_{step_count}.png"
+                image = save_np_to_image(obs["image"], image_path)
+                # change obs["image"] to image_path
+                obs["image_path"] = image_path
+            except Exception as e:
+                print(e)
+
             state_info: StateInfo = {"observation": obs, "info": info}
             trajectory.append(state_info)
 
             meta_data = {"action_history": ["None"]}
             while True:
+                step_count += 1
                 early_stop_flag, stop_info = early_stop(
                     trajectory, max_steps, early_stop_thresholds
                 )
@@ -323,7 +352,21 @@ def test(
                 if action["action_type"] == ActionTypes.STOP:
                     break
 
-                obs, _, terminated, _, info = env.step(action)
+                # the coord is a numpy array, which is not json serializable so we need to convert it to list
+                for key, value in action.items():
+                    if isinstance(value, np.ndarray):
+                        action[key] = value.tolist()
+
+                try:
+                    print(f"Step {step_count} action: {action}")
+                    obs, _, terminated, _, info = env.step(action)
+                    image_path = f"{args.result_dir}/images/{id}/step_{step_count}.png"
+                    image = save_np_to_image(obs["image"], image_path)
+                    obs["image_path"] = image_path
+                except Exception as e:
+                    terminated = False
+                    print(e)
+                
                 state_info = {"observation": obs, "info": info}
                 trajectory.append(state_info)
 
@@ -432,9 +475,10 @@ if __name__ == "__main__":
         print(f"Selected {len(file_idxs)} tasks: {file_idxs}")
     else:
         file_idxs = range(st_idx, ed_idx)
-
+    
     for i in file_idxs:
         test_file_list.append(f"config_files/{i}.json")
+
     if "debug" not in args.result_dir:
         test_file_list = get_unfinished(test_file_list, args.result_dir)
 

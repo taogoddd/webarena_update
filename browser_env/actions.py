@@ -51,6 +51,7 @@ class ParsedPlaywrightCode(TypedDict):
 from browser_env.processors import (
     ObservationProcessor,
     TextObervationProcessor,
+    ImageObservationProcessor
 )
 
 
@@ -129,6 +130,43 @@ def action2str(
                 action_str = f"type [{element_id}] [{text}] where [{element_id}] is {semantic_element}"
             case ActionTypes.HOVER:
                 action_str = f"hover [{element_id}] where [{element_id}] is {semantic_element}"
+            case ActionTypes.SCROLL:
+                action_str = f"scroll [{action['direction']}]"
+            case ActionTypes.KEY_PRESS:
+                action_str = f"press [{action['key_comb']}]"
+            case ActionTypes.GOTO_URL:
+                action_str = f"goto [{action['url']}]"
+            case ActionTypes.NEW_TAB:
+                action_str = "new_tab"
+            case ActionTypes.PAGE_CLOSE:
+                action_str = "close_tab"
+            case ActionTypes.GO_BACK:
+                action_str = "go_back"
+            case ActionTypes.GO_FORWARD:
+                action_str = "go_forward"
+            case ActionTypes.PAGE_FOCUS:
+                action_str = f"page_focus [{action['page_number']}]"
+            case ActionTypes.STOP:
+                action_str = f"stop [{action['answer']}]"
+            case ActionTypes.NONE:
+                action_str = "none"
+            case _:
+                raise ValueError(
+                    f"Unknown action type {action['action_type']}"
+                )
+    elif action_set_tag == "set_of_mark":
+        # just use action + id
+        element_id = action["element_id"]
+        match action["action_type"]:
+            case ActionTypes.CLICK:
+                # [ID=X] xxxxx
+                action_str = f"click [{element_id}]"
+            case ActionTypes.TYPE:
+                text = "".join([_id2key[i] for i in action["text"]])
+                text = text.replace("\n", " ")
+                action_str = f"type [{element_id}] [{text}]"
+            case ActionTypes.HOVER:
+                action_str = f"hover [{element_id}]"
             case ActionTypes.SCROLL:
                 action_str = f"scroll [{action['direction']}]"
             case ActionTypes.KEY_PRESS:
@@ -622,6 +660,7 @@ def create_click_action(
     element_name: str = "",
     pw_code: str = "",
     nth: int = 0,
+    bounding_boxes: list = [],
 ) -> Action:
     action = create_none_action()
     action.update(
@@ -632,6 +671,7 @@ def create_click_action(
             "element_name": element_name,
             "nth": nth,
             "pw_code": pw_code,
+            "bounding_boxes": bounding_boxes,
         }
     )
     return action
@@ -644,6 +684,7 @@ def create_hover_action(
     element_name: str = "",
     pw_code: str = "",
     nth: int = 0,
+    bounding_boxes: list = [],
 ) -> Action:
     action = create_none_action()
     action.update(
@@ -654,6 +695,7 @@ def create_hover_action(
             "element_name": element_name,
             "nth": nth,
             "pw_code": pw_code,
+            "bounding_boxes": bounding_boxes,
         }
     )
     return action
@@ -667,6 +709,7 @@ def create_type_action(
     element_name: str = "",
     pw_code: str = "",
     nth: int = 0,
+    bounding_boxes: list = [],
 ) -> Action:
     action = create_none_action()
     action.update(
@@ -678,6 +721,7 @@ def create_type_action(
             "nth": nth,
             "text": _keys2ids(text),
             "pw_code": pw_code,
+            "bounding_boxes": bounding_boxes,
         }
     )
     return action
@@ -1126,8 +1170,33 @@ def execute_action(
             # TODO[shuyanzh]: order is temp now
             if action["element_id"]:
                 element_id = action["element_id"]
-                element_center = obseration_processor.get_element_center(element_id)  # type: ignore[attr-defined]
+                if "bounding_boxes" in action.keys() and isinstance(obseration_processor, ImageObservationProcessor):
+                    bounding_boxes = action["bounding_boxes"]
+                    if len(bounding_boxes) == 0:
+                        raise ValueError("No proper locator found for click action")
+                    # choose the first bounding box as the click target
+                    bounding_box = bounding_boxes[0]
+                    element_center = obseration_processor.get_element_center_from_bounding_box(bounding_box)  # type: ignore[attr-defined]
+                else:
+                    element_center = obseration_processor.get_element_center(element_id)  # type: ignore[attr-defined]
                 execute_mouse_click(element_center[0], element_center[1], page)
+
+                # for debugging, mark the clicking point
+                # mark the clicking point
+                # print(f"clicking point: {element_center}")
+                # # get coordinate from bounding box
+                # x = (bounding_box["left"] + bounding_box["right"]) / 2
+                # y = (bounding_box["top"] + bounding_box["bottom"]) / 2
+                # page.evaluate(
+                #     f"document.elementFromPoint({x}, {y}).style.border = '5px solid red'"
+                # )
+                # # take a screenshot
+                # page.screenshot(path=f"debug_outputs/gpt-4v/result/images/0/click_{element_id}.png")
+                # # delete the border
+                # page.evaluate(
+                #     f"document.elementFromPoint({x}, {y}).style.border = ''"
+                # )
+
             elif action["element_role"] and action["element_name"]:
                 element_role = int(action["element_role"])
                 element_name = action["element_name"]
@@ -1144,7 +1213,15 @@ def execute_action(
         case ActionTypes.HOVER:
             if action["element_id"]:
                 element_id = action["element_id"]
-                element_center = obseration_processor.get_element_center(element_id)  # type: ignore[attr-defined]
+                if "bounding_boxes" in action.keys() and isinstance(obseration_processor, ImageObservationProcessor):
+                    bounding_boxes = action["bounding_boxes"]
+                    if len(bounding_boxes) == 0:
+                        raise ValueError("No proper locator found for click action")
+                    # choose the first bounding box as the click target
+                    bounding_box = bounding_boxes[0]
+                    element_center = obseration_processor.get_element_center_from_bounding_box(bounding_box)  # type: ignore[attr-defined]
+                else:
+                    element_center = obseration_processor.get_element_center(element_id)  # type: ignore[attr-defined] # type: ignore[attr-defined]
                 execute_mouse_hover(element_center[0], element_center[1], page)
             elif action["element_role"] and action["element_name"]:
                 element_role = int(action["element_role"])
@@ -1163,8 +1240,15 @@ def execute_action(
         case ActionTypes.TYPE:
             if action["element_id"]:
                 element_id = action["element_id"]
-                element_center = obseration_processor.get_element_center(element_id)  # type: ignore[attr-defined]
-                execute_mouse_click(element_center[0], element_center[1], page)
+                if "bounding_boxes" in action.keys() and isinstance(obseration_processor, ImageObservationProcessor):
+                    bounding_boxes = action["bounding_boxes"]
+                    if len(bounding_boxes) == 0:
+                        raise ValueError("No proper locator found for click action")
+                    # choose the first bounding box as the click target
+                    bounding_box = bounding_boxes[0]
+                    element_center = obseration_processor.get_element_center_from_bounding_box(bounding_box)  # type: ignore[attr-defined]
+                else:
+                    element_center = obseration_processor.get_element_center(element_id)  # type: ignore[attr-defined]  # type: ignore[attr-defined]                execute_mouse_click(element_center[0], element_center[1], page)
                 execute_type(action["text"], page)
             elif action["element_role"] and action["element_name"]:
                 element_role = int(action["element_role"])
@@ -1582,3 +1666,88 @@ def create_id_based_action(action_str: str) -> Action:
             return create_stop_action(answer)
 
     raise ActionParsingError(f"Invalid action {action_str}")
+
+# the special thing in this function is that for SoM, we do not know the real ID of an element so we need to add the bounding box to the action for further grounding
+def create_image_tag_action(action_str: str, info: dict[str, Any]) -> Action:
+    action_str = action_str.strip()
+    action = (
+        action_str.split("[")[0].strip()
+        if "[" in action_str
+        else action_str.split()[0].strip()
+    )
+    match action:
+        case "click":
+            match = re.search(r"click ?\[(\d+)\]", action_str)
+            if not match:
+                raise ActionParsingError(f"Invalid click action {action_str}")
+            element_id = match.group(1)
+            bounding_boxes = info['observation_metadata']['image']['tag_elem_dict'].get(element_id, [])
+            return create_click_action(element_id=element_id, bounding_boxes=bounding_boxes)
+        case "hover":
+            match = re.search(r"hover ?\[(\d+)\]", action_str)
+            if not match:
+                raise ActionParsingError(f"Invalid hover action {action_str}")
+            element_id = match.group(1)
+            bounding_boxes = info['observation_metadata']['image']['tag_elem_dict'].get(element_id, [])
+            return create_hover_action(element_id=element_id, bounding_boxes=bounding_boxes)
+        case "type":
+            # add default enter flag
+            if not (action_str.endswith("[0]") or action_str.endswith("[1]")):
+                action_str += " [1]"
+
+            match = re.search(
+                r"type ?\[(\d+)\] ?\[(.+)\] ?\[(\d+)\]", action_str
+            )
+            if not match:
+                raise ActionParsingError(f"Invalid type action {action_str}")
+            element_id, text, enter_flag = (
+                match.group(1),
+                match.group(2),
+                match.group(3),
+            )
+            bounding_boxes = info['observation_metadata']['image']['tag_elem_dict'].get(element_id, [])
+            if enter_flag == "1":
+                text += "\n"
+            return create_type_action(text=text, element_id=element_id, bounding_boxes=bounding_boxes)
+        case "press":
+            match = re.search(r"press ?\[(.+)\]", action_str)
+            if not match:
+                raise ActionParsingError(f"Invalid press action {action_str}")
+            key_comb = match.group(1)
+            return create_key_press_action(key_comb=key_comb)
+        case "scroll":
+            # up or down
+            match = re.search(r"scroll ?\[?(up|down)\]?", action_str)
+            if not match:
+                raise ActionParsingError(f"Invalid scroll action {action_str}")
+            direction = match.group(1)
+            return create_scroll_action(direction=direction)
+        case "goto":
+            match = re.search(r"goto ?\[(.+)\]", action_str)
+            if not match:
+                raise ActionParsingError(f"Invalid goto action {action_str}")
+            url = match.group(1)
+            return create_goto_url_action(url=url)
+        case "new_tab":
+            return create_new_tab_action()
+        case "go_back":
+            return create_go_back_action()
+        case "go_forward":
+            return create_go_forward_action()
+        case "tab_focus":
+            match = re.search(r"tab_focus ?\[(\d+)\]", action_str)
+            if not match:
+                raise ActionParsingError(
+                    f"Invalid tab_focus action {action_str}"
+                )
+            page_number = int(match.group(1))
+            return create_page_focus_action(page_number)
+        case "close_tab":
+            return create_page_close_action()
+        case "stop":  # stop answer
+            match = re.search(r"stop ?\[(.+)\]", action_str)
+            if not match:  # some tasks don't require an answer
+                answer = ""
+            else:
+                answer = match.group(1)
+            return create_stop_action(answer)

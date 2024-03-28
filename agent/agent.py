@@ -13,6 +13,7 @@ from browser_env.actions import (
     create_id_based_action,
     create_none_action,
     create_playwright_action,
+    create_image_tag_action,
 )
 from browser_env.utils import Observation, StateInfo
 from llms import (
@@ -115,9 +116,10 @@ class PromptAgent(Agent):
     def set_action_set_tag(self, tag: str) -> None:
         self.action_set_tag = tag
 
+    # pass info here to help with the image tag action generation
     @beartype
     def next_action(
-        self, trajectory: Trajectory, intent: str, meta_data: dict[str, Any]
+        self, trajectory: Trajectory, intent: str, meta_data: dict[str, Any], info: dict[str, Any]
     ) -> Action:
         prompt = self.prompt_constructor.construct(
             trajectory, intent, meta_data
@@ -139,6 +141,8 @@ class PromptAgent(Agent):
                     action = create_id_based_action(parsed_response)
                 elif self.action_set_tag == "playwright":
                     action = create_playwright_action(parsed_response)
+                elif self.action_set_tag == "set_of_mark":
+                    action = create_image_tag_action(parsed_response, info)
                 else:
                     raise ValueError(
                         f"Unknown action type {self.action_set_tag}"

@@ -1,0 +1,15 @@
+[Config file]: /tmp/tmpw7ueqnhh/0.json
+[Unhandled Error] ValueError('Invalid observatrion type: ')
+Traceback (most recent call last):
+  File "/n/fs/nlp-yitaol/github/webarena_update/run_v.py", line 304, in test
+    obs, info = env.reset(options={"config_file": config_file})
+  File "<@beartype(browser_env.envs.ScriptBrowserEnv.reset) at 0x7fa909311ab0>", line 51, in reset
+  File "/n/fs/nlp-yitaol/github/webarena_update/browser_env/envs.py", line 213, in reset
+    observation = self._get_obs()
+  File "/n/fs/nlp-yitaol/github/webarena_update/browser_env/envs.py", line 175, in _get_obs
+    obs = self.observation_handler.get_observation(
+  File "/n/fs/nlp-yitaol/github/webarena_update/browser_env/processors.py", line 990, in get_observation
+    text_obs = self.text_processor.process(page, client)
+  File "/n/fs/nlp-yitaol/github/webarena_update/browser_env/processors.py", line 633, in process
+    raise ValueError(
+ValueError: Invalid observatrion type: 

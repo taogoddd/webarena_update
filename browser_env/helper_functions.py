@@ -53,6 +53,19 @@ def get_render_action(
             action_str = f"<div class='raw_parsed_prediction' style='background-color:grey'><pre>{action['raw_prediction']}</pre></div>"
             action_str += f"<div class='action_object' style='background-color:grey'><pre>{repr(action)}</pre></div>"
             action_str += f"<div class='parsed_action' style='background-color:yellow'><pre>{action2str(action, action_set_tag, node_content)}</pre></div>"
+        
+        case "set_of_mark":
+            text_meta_data = observation_metadata["text"]
+            if action["element_id"] in text_meta_data["obs_nodes_info"]:
+                node_content = text_meta_data["obs_nodes_info"][
+                    action["element_id"]
+                ]["text"]
+            else:
+                node_content = "No match found"
+
+            action_str = f"<div class='raw_parsed_prediction' style='background-color:grey'><pre>{action['raw_prediction']}</pre></div>"
+            action_str += f"<div class='action_object' style='background-color:grey'><pre>{repr(action)}</pre></div>"
+            action_str += f"<div class='parsed_action' style='background-color:yellow'><pre>{action2str(action, action_set_tag, '')}</pre></div>"
 
         case "playwright":
             action_str = action["pw_code"]
@@ -100,6 +113,22 @@ def get_action_description(
                     action_str = f'The previous prediction you issued was "{action["raw_prediction"]}". However, the format was incorrect. Ensure that the action is wrapped inside a pair of {action_splitter} and enclose arguments within [] as follows: {action_splitter}action [arg] ...{action_splitter}.'
                 else:
                     action_str = action2str(action, action_set_tag, "")
+
+        case "set_of_mark":
+            if (
+                        action["action_type"] == ActionTypes.NONE
+                        and prompt_constructor is not None
+                    ):
+                        action_splitter = prompt_constructor.instruction[
+                            "meta_data"
+                        ]["action_splitter"]
+                        action_str = f'The previous prediction you issued was "{action["raw_prediction"]}". However, the format was incorrect. Ensure that the action is wrapped inside a pair of {action_splitter} and enclose each argument within [] as follows: {action_splitter}action [arg1] [arg2] ...{action_splitter}. e.g. {action_splitter}type [1234] [abcd] [1]{action_splitter}.'
+            else:
+                try:
+                    action_str = prompt_constructor.extract_action(action["raw_prediction"])
+                except Exception as e:
+                    action_str = "None"
+            return action_str
 
         case "playwright":
             action_str = action["pw_code"]
