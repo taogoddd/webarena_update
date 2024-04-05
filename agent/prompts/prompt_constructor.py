@@ -347,3 +347,91 @@ class VisionCoTPromptConstructor(PromptConstructor):
             raise ActionParsingError(
                 f'Cannot find the answer phrase "{self.answer_phrase}" in "{response}"'
             )
+        
+# this prompt constructor is for the case where the agent is given both image and the dom and ground it by dom
+class VisionTextPromptConstructor(PromptConstructor):
+    def __init__(
+        self,
+        instruction_path: str | Path,
+        lm_config: lm_config.LMConfig,
+        tokenizer: Tokenizer,
+    ):
+        super().__init__(instruction_path, lm_config, tokenizer)
+        self.answer_phrase = self.instruction["meta_data"]["answer_phrase"]
+
+    def construct(
+        self,
+        trajectory: Trajectory,
+        intent: str,
+        meta_data: dict[str, Any] = {},
+    ) -> APIInput:
+        # trajectory here is a list of interleaved state and action, state here contains:
+        # observation: {"text": "xxx", "image": np.array}
+        # info: a dict containing the page info
+        intro = self.instruction["intro"]
+        examples = self.instruction["examples"]
+        template = self.instruction["template"]
+        keywords = self.instruction["meta_data"]["keywords"]
+        state_info: StateInfo = trajectory[-1]  # type: ignore[assignment]
+
+        image_path = state_info["observation"]["image_path"]
+        text_obs = state_info["observation"]["text"]
+        current_image = encode_image(image_path)
+
+        page = state_info["info"]["page"]
+        url = page.url
+        previous_action_str = meta_data["action_history"][-1]
+
+        current_text = template.format(
+            objective=intent,
+            url=self.map_url_to_real(url),
+            observation=text_obs,
+            previous_action=previous_action_str,
+        )
+
+        current = [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{current_image}"}
+            },
+            {
+                "type": "text",
+                "text": current_text
+            },
+        ]
+
+        # the images in examples are image paths, we need to load and encode them
+        # for each example, there are 3 elements in the tuple: image, user_text, assistant_text
+        formatted_examples = [
+            (
+                [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{encode_image(e[0])}"}
+                    },
+                    {
+                        "type": "text",
+                        "text": e[1]
+                    },
+                ],
+                e[2]
+            )
+            for e in examples
+        ]
+
+        # make sure all keywords are replaced
+        assert all([f"{{k}}" not in current_text for k in keywords])
+        prompt = self.get_lm_api_input(intro, formatted_examples, current)
+
+        return prompt
+    def _extract_action(self, response: str) -> str:
+        # find the first occurence of action
+        action_splitter = self.instruction["meta_data"]["action_splitter"]
+        pattern = rf"{action_splitter}((.|\n)*?){action_splitter}"
+        match = re.search(pattern, response)
+        if match:
+            return match.group(1).strip()
+        else:
+            raise ActionParsingError(
+                f'Cannot find the answer phrase "{self.answer_phrase}" in "{response}"'
+            )

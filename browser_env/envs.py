@@ -96,7 +96,7 @@ class ScriptBrowserEnv(Env[dict[str, Observation], Action]):
         self.sleep_after_execution = sleep_after_execution
 
         match observation_type:
-            case "html" | "accessibility_tree":
+            case "html" | "accessibility_tree" | "image_text":
                 self.text_observation_type = observation_type
                 self.image_observation_type = ""
                 self.main_observation_type = "text"

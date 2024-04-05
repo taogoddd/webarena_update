@@ -72,11 +72,11 @@ def config() -> argparse.Namespace:
     )
     # here, for set of mark prompting, we need to use seperate grounding method, so here we distinguish it from the other action sets
     parser.add_argument(
-        "--action_set_tag", default="set_of_mark", help="Action type"
+        "--action_set_tag", default="id_accessibility_tree", help="Action type"
     )
     parser.add_argument(
         "--observation_type",
-        choices=["accessibility_tree", "html", "image"],
+        choices=["accessibility_tree", "html", "image", "image_text"],
         default="accessibility_tree",
         help="Observation type",
     )
@@ -158,7 +158,7 @@ def config() -> argparse.Namespace:
     # check the whether the action space is compatible with the observation space
     if (
         args.action_set_tag == "id_accessibility_tree"
-        and args.observation_type != "accessibility_tree"
+        and args.observation_type != "accessibility_tree" and args.observation_type != "image_text"
     ):
         raise ValueError(
             f"Action type {args.action_set_tag} is incompatible with the observation type {args.observation_type}"
