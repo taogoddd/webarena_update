@@ -347,3 +347,72 @@ class VisionCoTPromptConstructor(PromptConstructor):
             raise ActionParsingError(
                 f'Cannot find the answer phrase "{self.answer_phrase}" in "{response}"'
             )
+
+class BacktrackPromptConstructor(PromptConstructor):
+    def __init__(
+        self,
+        instruction_path: str | Path,
+        lm_config: lm_config.LMConfig,
+        tokenizer: Tokenizer,
+    ):
+        super().__init__(instruction_path, lm_config, tokenizer)
+        self.answer_phrase = self.instruction["meta_data"]["answer_phrase"]
+
+    def construct(
+        self,
+        trajectory: Trajectory,
+        intent: str,
+        meta_data: dict[str, Any] = {},
+    ) -> APIInput:
+        intro = self.instruction["intro"]
+        examples = self.instruction["examples"]
+        template = self.instruction["template"]
+        keywords = self.instruction["meta_data"]["keywords"]
+        eliminated_s_a_dict = self.instruction["meta_data"]["eliminated_s_a_dict"]
+        state_summary_dict = self.instruction["meta_data"]["state_summary_dict"]
+        state_info: StateInfo = trajectory[-1]  # type: ignore[assignment]
+        action_history = meta_data["action_history"]
+
+        obs = state_info["observation"][self.obs_modality]
+        summary = state_summary_dict.get(obs, "No state summary available")
+
+        eliminated_actions = ", ".join(eliminated_s_a_dict.get(obs, []))
+        max_obs_length = self.lm_config.gen_config["max_obs_length"]
+        if max_obs_length:
+            obs = self.tokenizer.decode(self.tokenizer.encode(obs)[:max_obs_length])  # type: ignore[arg-type]
+
+        page = state_info["info"]["page"]
+        url = page.url
+        previous_action_str = meta_data["action_history"][-1]
+
+        """
+        construct the history string like: STATE 0: [state_summary], ACTION 0: [action_str]...
+        """
+        history = ""
+        for i, (state, action) in enumerate(zip(state_summary_dict.values(), action_history)):
+            history += f"STATE {i}: {state}, ACTION {i}: {action}\n"
+
+        current = template.format(
+            objective=intent,
+            url=self.map_url_to_real(url),
+            observation=obs,
+            eliminated_actions=eliminated_actions,
+            history=history
+        )
+
+        assert all([f"{{k}}" not in current for k in keywords])
+
+        prompt = self.get_lm_api_input(intro, examples, current)
+        return prompt
+
+    def _extract_action(self, response: str) -> str:
+        # find the first occurence of action
+        action_splitter = self.instruction["meta_data"]["action_splitter"]
+        pattern = rf"{action_splitter}((.|\n)*?){action_splitter}"
+        match = re.search(pattern, response)
+        if match:
+            return match.group(1).strip()
+        else:
+            raise ActionParsingError(
+                f'Cannot find the answer phrase "{self.answer_phrase}" in "{response}"'
+            )
