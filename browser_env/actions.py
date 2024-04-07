@@ -1248,7 +1248,8 @@ def execute_action(
                     bounding_box = bounding_boxes[0]
                     element_center = obseration_processor.get_element_center_from_bounding_box(bounding_box)  # type: ignore[attr-defined]
                 else:
-                    element_center = obseration_processor.get_element_center(element_id)  # type: ignore[attr-defined]  # type: ignore[attr-defined]                execute_mouse_click(element_center[0], element_center[1], page)
+                    element_center = obseration_processor.get_element_center(element_id)  # type: ignore[attr-defined]  # type: ignore[attr-defined]                
+                execute_mouse_click(element_center[0], element_center[1], page)
                 execute_type(action["text"], page)
             elif action["element_role"] and action["element_name"]:
                 element_role = int(action["element_role"])

@@ -368,8 +368,8 @@ class BacktrackPromptConstructor(PromptConstructor):
         examples = self.instruction["examples"]
         template = self.instruction["template"]
         keywords = self.instruction["meta_data"]["keywords"]
-        eliminated_s_a_dict = self.instruction["meta_data"]["eliminated_s_a_dict"]
-        state_summary_dict = self.instruction["meta_data"]["state_summary_dict"]
+        eliminated_s_a_dict = meta_data["eliminated_s_a_dict"]
+        state_summary_dict = meta_data["state_summary_dict"]
         state_info: StateInfo = trajectory[-1]  # type: ignore[assignment]
         action_history = meta_data["action_history"]
 

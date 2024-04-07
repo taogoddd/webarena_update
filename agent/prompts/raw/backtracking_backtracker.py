@@ -30,7 +30,7 @@ ACTION 2: STOP [N/A]""",
 		),
 		(
 			"""OBJECTIVE:
-Show me the restaurants near CMU
+Find the time it takes to drive from the McDonalds near Princeton to Little Hall
 HISTORY:
 STATE 0: On the 'directions' page of openstreetmap,
 ACTION 0: TYPE [189] [McDonalds near Princeton ] where [189] is textbox 'From' required: False

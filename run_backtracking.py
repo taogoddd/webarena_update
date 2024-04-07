@@ -78,7 +78,7 @@ class Summarizer():
     def __init__(self, URL: str, accessibility_tree: str, instruction_path: str, model: str = "gpt-3.5-turbo"):
         self.URL = URL
         self.accessibility_tree = accessibility_tree
-        instruction = json.load(open(self.instruction_path))
+        instruction = json.load(open(instruction_path))
         instruction["examples"] = [tuple(e) for e in instruction["examples"]]
         self.instruction: Instruction = instruction
         self.model = model
@@ -93,7 +93,7 @@ class Summarizer():
 
         current = template.format(
             URL=URL,
-            accessibility_tree=accessibility_tree,
+            observation=accessibility_tree,
         )
 
         message = [{"role": "system", "content": intro}]
@@ -120,7 +120,12 @@ class Summarizer():
                 messages=prompt,
                 model=self.model,
                 stop_token=None,
+                temperature=1.0,
+                top_p=0.9,
+                context_length=0,
+                max_tokens=384,
             )
+        return response
 
     def summarize(self) -> str:
         prompt = self.construct_prompt()
@@ -130,7 +135,7 @@ class Summarizer():
 class Backtracker():
     def __init__(self, env: ScriptBrowserEnv, instruction_path: str, objective: str, model: str = "gpt-4-turbo-preview"):
         self.env = env
-        instruction = json.load(open(self.instruction_path))
+        instruction = json.load(open(instruction_path))
         instruction["examples"] = [tuple(e) for e in instruction["examples"]]
         self.instruction: Instruction = instruction
         self.objective = objective
@@ -163,7 +168,6 @@ class Backtracker():
         return history
 
     def construct_prompt(self, history: list[list[str]]) -> str:
-        accessibility_tree = self.accessibility_tree
         intro = self.instruction["intro"]
         examples = self.instruction["examples"]
         template = self.instruction["template"]
@@ -208,6 +212,10 @@ class Backtracker():
                 messages=prompt,
                 model=self.model,
                 stop_token=None,
+                temperature=1.0,
+                top_p=0.9,
+                context_length=0,
+                max_tokens=384,
             )
         return response
 
@@ -231,6 +239,7 @@ class Backtracker():
         history = self.construct_history(trajectory=trajectory, metadata=metadata)
         prompt = self.construct_prompt(history)
         response = self.call_llm(prompt)
+        print("Backtracking response: ", response)
         parsed_res = self.parse_response(response)
 
         # ground the action to the env
@@ -523,8 +532,8 @@ def test(
             c_trajectory.append(state_info)
 
             state = state_info["observation"]["text"]
-            summary = Summarizer(state_info["info"]["page"].url, state, "agents/prompts/summarizer.json").summarize()
-            print("Initial state summary: ", summary)
+            summary = Summarizer(state_info["info"]["page"].url, state, "agent/prompts/jsons/summarizer.json").summarize()
+            print("state 0 summary: ", summary)
 
             # eliminated_s_a_dict is used to store the eliminated state-action pairs, where the key is the state (DOM here) and the value is the list of actions that have been taken before but failed
             # state_summary_dict is used to store the summarized state, where the key is the state (DOM here) and the value is the summarized state
@@ -548,11 +557,9 @@ def test(
                         # get the error message
                         action = create_stop_action(f"ERROR: {str(e)}")
                     
-                print(action)
-
                 '''
                 example of action:
-                {'action_type': , 'coords': array([0., 0.], dtype=float32), 'element_role': 31, 'element_name': '', 'text': [], 'page_number': 0, 'url': '', 'nth': 0, 'pw_code': '', 'element_id': '19', 'key_comb': '', 'direction': '', 'answer': '', 'raw_prediction': 'To find the top search terms in the store, I would typically look for a section in the dashboard that provides insights or analytics on customer behavior, which could include search term data. However, the screenshot provided does not show a direct link or section for search terms analytics on the current view of the dashboard.\n\nAdvanced reporting, which could potentially contain search term analytics, can sometimes be accessed through a link like the one indicated by ID [19]. Since there are no other obvious options, I will proceed by clicking on the "Go to Advanced Reporting" link to look for the top search terms.\n\nIn summary, the next action I will perform is ```click [19]```.', 'bounding_boxes': [{'left': 992.578125, 'top': 320.5625, 'right': 1203.1875, 'bottom': 342.5625, 'width': 210.609375, 'height': 22}]}
+                {'action_type': <ActionTypes.CLICK: 6>, 'coords': array([0., 0.], dtype=float32), 'element_role': 31, 'element_name': '', 'text': [], 'page_number': 0, 'url': '', 'nth': 0, 'pw_code': '', 'element_id': '1332', 'key_comb': '', 'direction': '', 'answer': '', 'raw_prediction': 'In summary, the next action I will perform is ```click [1332]```', 'bounding_boxes': []}
                 '''
 
                 trajectory.append(action)
@@ -572,7 +579,7 @@ def test(
                 meta_data["action_history"].append(action_str)
                 # update the eliminated_s_a_dict
                 state = state_info["observation"]["text"]
-                if state in meta_data["eliminated_s_a_dict"]:
+                if "eliminated_s_a_dict" in meta_data.keys() and state in meta_data["eliminated_s_a_dict"]:
                     meta_data["eliminated_s_a_dict"][state].append(action_str)
 
                 # if the action is stop, check whether it is an N/A
@@ -580,7 +587,7 @@ def test(
                 if action["action_type"] == ActionTypes.STOP:
                     if answer == "N/A":
                         # call another module to deal with the N/A case
-                        obs, trajectory, meta_data, c_trajectory, c_meta_data = Backtracker(trajectory, env, meta_data).act(trajectory=trajectory, metadata=meta_data)
+                        obs, trajectory, meta_data, c_trajectory, c_meta_data = Backtracker(env = env, instruction_path="agent/prompts/jsons/backtracking_backtracker.json", objective=intent).act(trajectory=trajectory, metadata=meta_data)
 
                         # render this special part
                         render_helper.render(
@@ -616,7 +623,8 @@ def test(
 
                 state = state_info["observation"]["text"]
                 if state not in meta_data["state_summary_dict"]:
-                    summary = Summarizer(state_info["info"]["page"].url, state, "agents/prompts/summarizer.json").summarize()
+                    summary = Summarizer(state_info["info"]["page"].url, state, "agent/prompts/jsons/summarizer.json").summarize()
+                    print(f"Summary of state {step_count}: {summary}")
                     meta_data["state_summary_dict"][state] = summary                
 
                 if terminated:

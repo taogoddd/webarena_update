@@ -40,7 +40,8 @@ To be successful, it is very important to follow the following rules:
 2. You should only issue one action at a time.
 3. You should follow the examples to reason step by step and then issue the next action.
 4. Generate the action in the correct format. Start with a "In summary, the next action I will perform is" phrase, followed by action inside ``````. For example, "In summary, the next action I will perform is ```click [1234]```".
-5. Issue stop action when you think you have achieved the objective. Don't generate anything after stop.""",
+5. Issue stop action when you think you have achieved the objective. Don't generate anything after stop.
+6. The eliminated actions are the actions that have been tried but failed. You should try other actions in that case""",
 	"examples": [
 		(
 			"""OBSERVATION:
@@ -51,7 +52,8 @@ To be successful, it is very important to follow the following rules:
 		[1761] button 'Add to Compare'
 URL: http://onestopmarket.com/office-products/office-electronics.html
 OBJECTIVE: What is the price of HP Inkjet Fax Machine
-PREVIOUS ACTION: None""",
+TRAJECTORY HISTORY: None
+ELIMINATED ACTIONS: None""",
 			"Let's think step-by-step. This page list the information of HP Inkjet Fax Machine, which is the product identified in the objective. Its price is $279.49. I think I have achieved the objective. I will issue the stop action with the answer. In summary, the next action I will perform is ```stop [$279.49]```",
 		),
 		(
@@ -62,7 +64,7 @@ PREVIOUS ACTION: None""",
 [212] heading 'Search Results'
 [216] button 'Close'
 URL: http://openstreetmap.org
-OBJECTIVE: Show me the restaurants near CMU
+OBJECTIVE: Find the time it takes to drive from the McDonalds near Princeton to Little Hall
 PREVIOUS ACTION: None""",
 			"Let's think step-by-step. This page has a search box whose ID is [164]. According to the nominatim rule of openstreetmap, I can search for the restaurants near a location by \"restaurants near\". I can submit my typing by pressing the Enter afterwards. In summary, the next action I will perform is ```type [164] [restaurants near CMU] [1]```",
 		),

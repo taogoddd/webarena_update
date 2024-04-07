@@ -185,7 +185,7 @@ class RenderHelper(object):
             img_obs = observation["image"]
             image = Image.fromarray(img_obs)
             byte_io = io.BytesIO()
-            image.save(byte_io, foxrmat="PNG")
+            image.save(byte_io, format="PNG")
             byte_io.seek(0)
             image_bytes = base64.b64encode(byte_io.read())
             image_str = image_bytes.decode("utf-8")
