@@ -115,7 +115,6 @@ def main(auth_folder: str = "./.auth") -> None:
     max_workers = 8
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for pair in pairs:
-            print(pair)
             # TODO[shuyanzh] auth don't work on these two sites
             if "reddit" in pair and (
                 "shopping" in pair or "shopping_admin" in pair
@@ -125,9 +124,7 @@ def main(auth_folder: str = "./.auth") -> None:
                 renew_comb, list(sorted(pair)), auth_folder=auth_folder
             )
 
-
         for site in SITES:
-            print(site)
             executor.submit(renew_comb, [site], auth_folder=auth_folder)
 
     futures = []
