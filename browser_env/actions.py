@@ -107,6 +107,8 @@ class Action(TypedDict):
     pw_code: str
     answer: str
     raw_prediction: str  # raw prediction from the model
+    # for backtracking
+    state_id: int
 
 
 @beartype
@@ -150,6 +152,8 @@ def action2str(
                 action_str = f"stop [{action['answer']}]"
             case ActionTypes.NONE:
                 action_str = "none"
+            case ActionTypes.RETURN:
+                action_str = f"return to state {action['state_id']}"
             case _:
                 raise ValueError(
                     f"Unknown action type {action['action_type']}"
@@ -306,6 +310,9 @@ class ActionTypes(IntEnum):
     SELECT_OPTION = 16
 
     STOP = 17
+
+    # for backtracking
+    RETURN = 18
 
     def __str__(self) -> str:
         return f"ACTION_TYPES.{self.name}"

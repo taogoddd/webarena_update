@@ -65,9 +65,31 @@ ELIMINATED ACTIONS: None""",
 [216] button 'Close'
 URL: http://openstreetmap.org
 OBJECTIVE: Find the time it takes to drive from the McDonalds near Princeton to Little Hall
-PREVIOUS ACTION: None""",
-			"Let's think step-by-step. This page has a search box whose ID is [164]. According to the nominatim rule of openstreetmap, I can search for the restaurants near a location by \"restaurants near\". I can submit my typing by pressing the Enter afterwards. In summary, the next action I will perform is ```type [164] [restaurants near CMU] [1]```",
+TRAJECTORY HISTORY: None
+ELIMINATED ACTIONS: type [164] [restaurants near CMU] [1] where [164] is textbox 'Search'""",
+			"Let's think step-by-step. This page has a search box whose ID is [164]. According to the nominatim rule of openstreetmap, I can search for the restaurants near a location by \"restaurants near\". I have tried to search with query 'restaurants near CMU' before but FAILED. I should consider changing the search query. I can submit my typing by pressing the Enter afterwards. In summary, the next action I will perform is ```type [164] [restaurants Carnegie Mellon University] [1]```",
 		),
+#         (
+#             """OBSERVATION:
+# [13] link 'Magento Admin Panel'
+# 	[38] img 'Magento Admin Panel'
+# [39] menubar '' orientation: horizontal
+# 	[78] link '\ue604 DASHBOARD'
+# 	[80] link '\ue60b SALES'
+# 	[83] link '\ue608 CATALOG'
+# 	[86] link '\ue603 CUSTOMERS'
+# 	[89] link '\ue609 MARKETING'
+# 	[92] link '\ue602 CONTENT'
+# 	[95] link '\ue60a REPORTS'
+# 	[98] link '\ue60d STORES'
+# 	[101] link '\ue610 SYSTEM'
+# 	[104] link '\ue612 FIND PARTNERS & EXTENSIONS'
+# URL: http://luma.com/admin
+# OBJECTIVE: How many Sprite Statis Balls are ordered in Feb, 2023?
+# TRAJECTORY HISTORY: None
+# ELIMINATED ACTIONS: click [80] where [80] is link 'SALES'""",
+# 			"Let's think step-by-step. To find the number of Sprite Statis Balls ordered in Feb, 2023, I need to navigate to the page that shows the sales information. I have tried to click on the 'SALES' link before but FAILED. I should consider consider to change the action. I can click REPORTS to see whether I can get sales information there. In summary, the next action I will perform is ```click [95]```",
+# 		),
 	],
 	"template": """OBSERVATION:
 {observation}

@@ -550,7 +550,7 @@ def test(
                     action = create_stop_action(f"Early stop: {stop_info}")
                 else:
                     try:
-                        action = agent.next_action(
+                        prompt, action = agent.next_action(
                             trajectory, intent, meta_data=meta_data, info=info
                         )
                     except ValueError as e:

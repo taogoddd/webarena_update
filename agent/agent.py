@@ -120,7 +120,7 @@ class PromptAgent(Agent):
     @beartype
     def next_action(
         self, trajectory: Trajectory, intent: str, meta_data: dict[str, Any], info: dict[str, Any]
-    ) -> Action:
+    ) -> tuple[list, Action]:
         prompt = self.prompt_constructor.construct(
             trajectory, intent, meta_data
         )
@@ -155,7 +155,7 @@ class PromptAgent(Agent):
                     action["raw_prediction"] = response
                     break
 
-        return action
+        return prompt, action
 
     def reset(self, test_config_file: str) -> None:
         pass

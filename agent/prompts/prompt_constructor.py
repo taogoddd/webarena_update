@@ -374,23 +374,27 @@ class BacktrackPromptConstructor(PromptConstructor):
         action_history = meta_data["action_history"]
 
         obs = state_info["observation"][self.obs_modality]
-        summary = state_summary_dict.get(obs, "No state summary available")
 
         eliminated_actions = ", ".join(eliminated_s_a_dict.get(obs, []))
+        if len(eliminated_actions) == 0:
+            eliminated_actions = "None"
         max_obs_length = self.lm_config.gen_config["max_obs_length"]
         if max_obs_length:
             obs = self.tokenizer.decode(self.tokenizer.encode(obs)[:max_obs_length])  # type: ignore[arg-type]
 
         page = state_info["info"]["page"]
         url = page.url
-        previous_action_str = meta_data["action_history"][-1]
 
         """
         construct the history string like: STATE 0: [state_summary], ACTION 0: [action_str]...
         """
         history = ""
-        for i, (state, action) in enumerate(zip(state_summary_dict.values(), action_history)):
-            history += f"STATE {i}: {state}, ACTION {i}: {action}\n"
+        for i in range(0, (len(trajectory)-1)//2):
+            state = trajectory[2*i]
+            action = trajectory[2*i+1]
+            action_str = action_history[i]
+            state_summary = state_summary_dict.get(state["observation"][self.obs_modality], "None")
+            history += f"STATE {i}: {state_summary}, ACTION {i}: {action_str}\n"
 
         current = template.format(
             objective=intent,

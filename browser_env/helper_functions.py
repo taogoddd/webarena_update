@@ -192,7 +192,8 @@ class RenderHelper(object):
             new_content += f"<img src='data:image/png;base64,{image_str}' style='width:50vw; height:auto;'/>\n"
 
         # meta data
-        new_content += f"<div class='prev_action' style='background-color:pink'>{meta_data['action_history'][-1]}</div>\n"
+        last_action = meta_data["action_history"][-1] if len(meta_data["action_history"])>0 else "None"
+        new_content += f"<div class='prev_action' style='background-color:pink'>{last_action}</div>\n"
 
         # action
         action_str = get_render_action(
