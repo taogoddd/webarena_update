@@ -337,3 +337,34 @@ def generate_from_4v_chat_completion(
         print(e)
         answer = ""
     return answer
+
+# NOTE: temporarily add the funcition here; this is for azure only
+def generate_from_4o_chat_completion(
+    messages: list[dict[str, str]],
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    top_p: float,
+    context_length: int,
+    stop_token: str | None = None,
+) -> str:
+    if "OPENAI_API_KEY" not in os.environ:
+        raise ValueError(
+            "OPENAI_API_KEY environment variable must be set when using OpenAI API."
+        )
+    openai.api_key = os.environ["OPENAI_API_KEY"]
+    openai.api_base =  os.environ["AZURE_OPENAI_ENDPOINT"]
+    openai.api_type = 'azure'
+    openai.api_version = os.environ["OPENAI_API_VERSION"]
+    deployment_name = 'gpt-4o-2024-05-13'
+
+    response = openai.ChatCompletion.create(  # type: ignore
+        engine=deployment_name,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+        stop=[stop_token] if stop_token else None,
+    )
+    answer: str = response["choices"][0]["message"]["content"]
+    return answer

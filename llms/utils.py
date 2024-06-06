@@ -6,6 +6,7 @@ from llms import (
     generate_from_openai_chat_completion,
     generate_from_openai_completion,
     generate_from_4v_chat_completion,
+    generate_from_4o_chat_completion,
     lm_config,
 )
 
@@ -30,6 +31,16 @@ def call_llm(
                 stop_token=None,
             )
             print("response:",response)
+        elif lm_config.model == "gpt-4o":
+            response = generate_from_4o_chat_completion(
+                messages=prompt,
+                model=lm_config.model,
+                temperature=lm_config.gen_config["temperature"],
+                top_p=lm_config.gen_config["top_p"],
+                context_length=lm_config.gen_config["context_length"],
+                max_tokens=lm_config.gen_config["max_tokens"],
+                stop_token=None,
+            )
         elif lm_config.mode == "chat":
             assert isinstance(prompt, list)
             response = generate_from_openai_chat_completion(
