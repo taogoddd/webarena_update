@@ -159,7 +159,7 @@ config_files*/*9.json
 config_files*/test.json
 
 # ignore file containing openai key
-env_var_setup.sh
+# env_var_setup.sh
 sample_result
 
 # ignore outputs
