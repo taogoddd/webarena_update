@@ -41,6 +41,7 @@ def call_llm(
                 max_tokens=lm_config.gen_config["max_tokens"],
                 stop_token=None,
             )
+            print("response:",response)
         elif lm_config.mode == "chat":
             assert isinstance(prompt, list)
             response = generate_from_openai_chat_completion(

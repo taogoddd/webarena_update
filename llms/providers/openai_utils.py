@@ -237,6 +237,7 @@ async def agenerate_from_openai_chat_completion(
     return [x["choices"][0]["message"]["content"] for x in responses]
 
 
+# this function is changed temporarily for azure api using
 @retry_with_exponential_backoff
 def generate_from_openai_chat_completion(
     messages: list[dict[str, str]],
@@ -247,15 +248,32 @@ def generate_from_openai_chat_completion(
     context_length: int,
     stop_token: str | None = None,
 ) -> str:
-    if "OPENAI_API_KEY" not in os.environ:
-        raise ValueError(
-            "OPENAI_API_KEY environment variable must be set when using OpenAI API."
-        )
-    openai.api_key = os.environ["OPENAI_API_KEY"]
-    openai.organization = os.environ.get("OPENAI_ORGANIZATION", "")
+    # if "OPENAI_API_KEY" not in os.environ:
+    #     raise ValueError(
+    #         "OPENAI_API_KEY environment variable must be set when using OpenAI API."
+    #     )
+    # openai.api_key = os.environ["OPENAI_API_KEY"]
+    # openai.organization = os.environ.get("OPENAI_ORGANIZATION", "")
+
+    # response = openai.ChatCompletion.create(  # type: ignore
+    #     model=model,
+    #     messages=messages,
+    #     temperature=temperature,
+    #     max_tokens=max_tokens,
+    #     top_p=top_p,
+    #     stop=[stop_token] if stop_token else None,
+    # )
+    # answer: str = response["choices"][0]["message"]["content"]
+    # return answer
+
+    openai.api_key = os.environ["AZURE_OPENAI_API_KEY"]
+    openai.api_base =  os.environ["AZURE_OPENAI_ENDPOINT"]
+    openai.api_type = 'azure'
+    openai.api_version = os.environ["OPENAI_API_VERSION"]
+    deployment_name = 'gpt-4o-2024-05-13'
 
     response = openai.ChatCompletion.create(  # type: ignore
-        model=model,
+        engine=deployment_name,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
@@ -348,11 +366,13 @@ def generate_from_4o_chat_completion(
     context_length: int,
     stop_token: str | None = None,
 ) -> str:
-    if "OPENAI_API_KEY" not in os.environ:
+    # count and print latency
+    start = time.time()
+    if "AZURE_OPENAI_API_KEY" not in os.environ:
         raise ValueError(
-            "OPENAI_API_KEY environment variable must be set when using OpenAI API."
+            "AZURE_OPENAI_API_KEY environment variable must be set when using OpenAI API."
         )
-    openai.api_key = os.environ["OPENAI_API_KEY"]
+    openai.api_key = os.environ["AZURE_OPENAI_API_KEY"]
     openai.api_base =  os.environ["AZURE_OPENAI_ENDPOINT"]
     openai.api_type = 'azure'
     openai.api_version = os.environ["OPENAI_API_VERSION"]
@@ -367,4 +387,6 @@ def generate_from_4o_chat_completion(
         stop=[stop_token] if stop_token else None,
     )
     answer: str = response["choices"][0]["message"]["content"]
+    end = time.time()
+    print(f"Latency: {end - start}")
     return answer
