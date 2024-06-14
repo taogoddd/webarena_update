@@ -650,17 +650,19 @@ class TextObervationProcessor(ObservationProcessor):
         )
 
 class ImageObservationProcessor(ObservationProcessor):
-    def __init__(self, observation_type: str):
+    def __init__(self, observation_type: str, current_viewport_only: bool,):
         self.observation_type = observation_type
         self.observation_tag = "image"
         self.meta_data = create_empty_metadata()
+        self.current_viewport_only = current_viewport_only
 
     def process(self, page: Page, client: CDPSession) -> npt.NDArray[np.uint8]:
+        current_viewport_only = self.current_viewport_only
         try:
-            screenshot = png_bytes_to_numpy(page.screenshot())
+            screenshot = png_bytes_to_numpy(page.screenshot(full_page=not self.current_viewport_only))
         except:
             page.wait_for_event("load")
-            screenshot = png_bytes_to_numpy(page.screenshot())
+            screenshot = png_bytes_to_numpy(page.screenshot(full_page=not self.current_viewport_only))
         return screenshot
 
 class ObservationHandler:
@@ -679,7 +681,7 @@ class ObservationHandler:
             text_observation_type, current_viewport_only, viewport_size
         )
         self.image_processor = ImageObservationProcessor(
-            image_observation_type
+            image_observation_type, current_viewport_only
         )
         self.viewport_size = viewport_size
 
