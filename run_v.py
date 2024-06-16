@@ -33,6 +33,7 @@ from browser_env.auto_login import get_site_comb_from_filepath
 from browser_env.helper_functions import (
     RenderHelper,
     get_action_description,
+    check_repetitive_actions
 )
 from evaluation_harness import evaluator_router
 
@@ -105,11 +106,12 @@ def config() -> argparse.Namespace:
         type=int,
         default=3,
     )
+    # change this value to 4 to add the reminder part
     parser.add_argument(
         "--repeating_action_failure_th",
         help="When concesecutive repeating action exceeds this threshold, the agent will stop",
         type=int,
-        default=3,
+        default=4,
     )
     parser.add_argument(
         "--selected_files",
@@ -318,6 +320,7 @@ def test(
 
             meta_data = {"action_history": ["None"]}
             while True:
+                reminders = []
                 step_count += 1
                 early_stop_flag, stop_info = early_stop(
                     trajectory, max_steps, early_stop_thresholds
@@ -336,7 +339,7 @@ def test(
 
                 trajectory.append(action)
 
-                action_str = get_action_description(
+                action_str, parsing_reminder_str = get_action_description(
                     action,
                     state_info["info"]["observation_metadata"],
                     action_set_tag=args.action_set_tag,
@@ -344,6 +347,16 @@ def test(
                     if isinstance(agent, PromptAgent)
                     else None,
                 )
+                reminders.append(parsing_reminder_str)
+
+                # check repetitive actions
+                repetitive_flag, repetitive_info = check_repetitive_actions(
+                    trajectory, early_stop_thresholds["repeating_action"]-1, action_str
+                )
+
+                if repetitive_flag:
+                    reminders.append(repetitive_info)
+
                 render_helper.render(
                     action, state_info, meta_data, args.render_screenshot
                 )
@@ -370,6 +383,15 @@ def test(
                 state_info = {"observation": obs, "info": info}
                 trajectory.append(state_info)
 
+                # check whether the last 2 states are the same, if so, add reminder; parsing error will also lead to no effect, but we do not need to add reminder in this case
+                if len(trajectory) > 3 and parsing_reminder_str == "":
+                    obs_1 = trajectory[-3]["observation"]["text"]
+                    obs_2 = trajectory[-1]["observation"]["text"]
+                    if obs_1 == obs_2:
+                        reminders.append(f"Your last action {action_str} has no effect on the webpage (it does not change at all after you issuing the action), so you should consider trying another action.")
+
+                meta_data["reminders"] = reminders
+
                 if terminated:
                     # add a action place holder
                     trajectory.append(create_stop_action(""))
@@ -384,6 +406,8 @@ def test(
             )
 
             scores.append(score)
+            print(f"Scores list: {scores}")
+            print(f"Current average score: {sum(scores) / len(scores)}")
 
             if score == 1:
                 logger.info(f"[Result] (PASS) {config_file}")

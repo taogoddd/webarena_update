@@ -12,10 +12,10 @@ The actions you can perform fall into several categories:
 
 Page Operation Actions:
 `click [id]`: This action clicks on an element with a specific id on the webpage.
-`type [id] [content] [press_enter_after=0|1]`: Use this to type the content into the field with id. By default, the "Enter" key is pressed after typing unless press_enter_after is set to 0.
+`type [id] [content] [press_enter_after=0|1]`: Use this to type the content into the field with id. By default, the "Enter" key is pressed after typing unless press_enter_after is set to 0. The content can not be empty.
 `hover [id]`: Hover over an element with id.
 `press [key_comb]`:  Simulates the pressing of a key combination on the keyboard (e.g., Ctrl+v).
-`scroll [direction=down|up]`: Scroll the page up or down.
+`scroll [direction]`: Scroll the page up or down. The direction can only have the value of 'up' or 'down'.
 
 Tab Management Actions:
 `new_tab`: Open a new, empty browser tab.
@@ -39,7 +39,8 @@ To be successful, it is very important to follow the following rules:
 2. You should only issue one action at a time.
 3. You should follow the examples to reason step by step and then issue the next action.
 4. Generate the action in the correct format. Start with a "In summary, the next action I will perform is" phrase, followed by action inside ``````. For example, "In summary, the next action I will perform is ```click [1234]```".
-5. Issue stop action when you think you have achieved the objective. Don't generate anything after stop.""",
+5. Issue stop action when you think you have achieved the objective. Don't generate anything after stop.
+6. If there are any reminders in the reminder section, you should consider them while issuing the next action.""",
 	"examples": [
 		(
 			"""OBSERVATION:
@@ -50,7 +51,8 @@ To be successful, it is very important to follow the following rules:
 		[1761] button 'Add to Compare'
 URL: http://onestopmarket.com/office-products/office-electronics.html
 OBJECTIVE: What is the price of HP Inkjet Fax Machine
-PREVIOUS ACTION: None""",
+PREVIOUS ACTION: None
+REMINDERS: None""",
 			"Let's think step-by-step. This page list the information of HP Inkjet Fax Machine, which is the product identified in the objective. Its price is $279.49. I think I have achieved the objective. I will issue the stop action with the answer. In summary, the next action I will perform is ```stop [$279.49]```",
 		),
 		(
@@ -62,7 +64,8 @@ PREVIOUS ACTION: None""",
 [216] button 'Close'
 URL: http://openstreetmap.org
 OBJECTIVE: Show me the restaurants near CMU
-PREVIOUS ACTION: None""",
+PREVIOUS ACTION: None
+REMINDERS: None""",
 			"Let's think step-by-step. This page has a search box whose ID is [164]. According to the nominatim rule of openstreetmap, I can search for the restaurants near a location by \"restaurants near\". I can submit my typing by pressing the Enter afterwards. In summary, the next action I will perform is ```type [164] [restaurants near CMU] [1]```",
 		),
 	],
@@ -70,11 +73,12 @@ PREVIOUS ACTION: None""",
 {observation}
 URL: {url}
 OBJECTIVE: {objective}
-PREVIOUS ACTION: {previous_action}""",
+PREVIOUS ACTION: {previous_action}
+REMINDERS: {reminders}""",
 	"meta_data": {
 		"observation": "accessibility_tree",
 		"action_type": "id_accessibility_tree",
-		"keywords": ["url", "objective", "observation", "previous_action"],
+		"keywords": ["url", "objective", "observation", "previous_action", "reminders"],
 		"prompt_constructor": "CoTPromptConstructor",
 		"answer_phrase": "In summary, the next action I will perform is",
 		"action_splitter": "```"

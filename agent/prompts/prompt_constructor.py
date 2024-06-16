@@ -206,7 +206,7 @@ class DirectPromptConstructor(PromptConstructor):
                 f"Cannot parse action from response {response}"
             )
 
-
+# add reminder to help the agent to realize and recover from the error
 class CoTPromptConstructor(PromptConstructor):
     """The agent will perform step-by-step reasoning before the answer"""
 
@@ -239,11 +239,22 @@ class CoTPromptConstructor(PromptConstructor):
         page = state_info["info"]["page"]
         url = page.url
         previous_action_str = meta_data["action_history"][-1]
+        reminders = meta_data.get("reminders", [])
+
+        # construct the reminder string
+        reminder_str = ""
+        if len(reminders) > 0:
+            for i, reminder in enumerate(reminders):
+                reminder_str += f"{i+1}: {reminder}\n"
+        else:
+            reminder_str = "None"
+
         current = template.format(
             objective=intent,
             url=self.map_url_to_real(url),
             observation=obs,
             previous_action=previous_action_str,
+            reminders=reminder_str,
         )
 
         assert all([f"{{k}}" not in current for k in keywords])
@@ -380,14 +391,36 @@ class VisionTextPromptConstructor(PromptConstructor):
 
         page = state_info["info"]["page"]
         url = page.url
-        previous_action_str = meta_data["action_history"][-1]
+
+        action_history = meta_data["action_history"]
+        if len(action_history) > 1:
+            # remove the first None action
+            action_history = action_history[1:]
+        action_history_str = "\n".join(action_history)
+
+        reminders = meta_data.get("reminders", [])
+        # construct the reminder string
+        reminder_str = ""
+        # remove all the empty strs
+        reminders = [r for r in reminders if r]
+        if len(reminders) > 0:
+            for i, reminder in enumerate(reminders):
+                reminder_str += f"{i+1}: {reminder}\n"
+        else:
+            reminder_str = "None"
 
         current_text = template.format(
             objective=intent,
             url=self.map_url_to_real(url),
             observation=text_obs,
-            previous_action=previous_action_str,
+            action_history=action_history_str,
+            reminders=reminder_str,
         )
+
+        print("*"*100)
+        print("Prompt:")
+        print(current_text)
+        print("*"*100)
 
         current = [
             {

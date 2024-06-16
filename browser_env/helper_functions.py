@@ -14,7 +14,9 @@ from browser_env import (
     ObservationMetadata,
     StateInfo,
     action2str,
+    Trajectory
 )
+from browser_env.actions import is_equivalent
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -73,16 +75,18 @@ def get_render_action(
             raise ValueError(f"Unknown action type {action['action_type']}")
     return action_str
 
-
+# the function will return 2 values (action_str, reminder_str), action_str is the text version of the action with the content of the element which can be easily understood. It is empty string when there is an parsing error. reminder_str is the hint to recover from the parsing error.
 def get_action_description(
     action: Action,
     observation_metadata: dict[str, ObservationMetadata],
     action_set_tag: str,
     prompt_constructor: PromptConstructor | None,
-) -> str:
+) -> tuple[str, str]:
     """Generate the text version of the predicted actions to store in action history for prompt use.
     May contain hint information to recover from the failures"""
 
+    action_str = ""
+    reminder_str = ""
     match action_set_tag:
         case "id_accessibility_tree":
             text_meta_data = observation_metadata["text"]
@@ -101,7 +105,7 @@ def get_action_description(
                         action, action_set_tag, node_content
                     )
                 else:
-                    action_str = f"Attempt to perfom \"{action_name}\" on element \"[{action['element_id']}]\" but no matching element found. Please check the observation more carefully."
+                    reminder_str = f"In the last action, you attempt to perfom \"{action_name}\" on element \"[{action['element_id']}]\" but no matching element found. When you issue the next action, please check the observation more carefully."
             else:
                 if (
                     action["action_type"] == ActionTypes.NONE
@@ -110,10 +114,9 @@ def get_action_description(
                     action_splitter = prompt_constructor.instruction[
                         "meta_data"
                     ]["action_splitter"]
-                    action_str = f'The previous prediction you issued was "{action["raw_prediction"]}". However, the format was incorrect. Ensure that the action is wrapped inside a pair of {action_splitter} and enclose arguments within [] as follows: {action_splitter}action [arg] ...{action_splitter}.'
+                    reminder_str = f'The previous action you issued was "{action["raw_prediction"]}". However, the format was incorrect. When you issue the next action, ensure 1. the action is wrapped inside a pair of {action_splitter}\n 2. enclose arguments within [] as follows: {action_splitter}action [arg] ...{action_splitter}.\n 3. The action, e.g. click, is in the provided action space\n'
                 else:
                     action_str = action2str(action, action_set_tag, "")
-
         case "set_of_mark":
             if (
                         action["action_type"] == ActionTypes.NONE
@@ -135,9 +138,11 @@ def get_action_description(
 
         case _:
             raise ValueError(f"Unknown action type {action['action_type']}")
+    
+    if action_str == "":
+        action_str = "[PARSING ERROR]"
 
-    return action_str
-
+    return action_str, reminder_str
 
 class RenderHelper(object):
     """Helper class to render text and image observations and meta data in the trajectory"""
@@ -218,3 +223,89 @@ class RenderHelper(object):
 
     def close(self) -> None:
         self.render_file.close()
+
+def early_stop(
+    trajectory: Trajectory, max_steps: int, thresholds: dict[str, int]
+) -> tuple[bool, str]:
+    """Check whether need to early stop"""
+
+    # reach the max step
+    num_steps = (len(trajectory) - 1) / 2
+    if num_steps >= max_steps:
+        return True, f"Reach max steps {max_steps}"
+
+    last_k_actions: list[Action]
+    action_seq: list[Action]
+
+    # Case: parsing failure for k times
+    k = thresholds["parsing_failure"]
+    last_k_actions = trajectory[1::2][-k:]  # type: ignore[assignment]
+    if len(last_k_actions) >= k:
+        if all(
+            [
+                action["action_type"] == ActionTypes.NONE
+                for action in last_k_actions
+            ]
+        ):
+            return True, f"Failed to parse actions for {k} times"
+
+    # Case: same action for k times
+    k = thresholds["repeating_action"]
+    last_k_actions = trajectory[1::2][-k:]  # type: ignore[assignment]
+    action_seq = trajectory[1::2]  # type: ignore[assignment]
+
+    if len(action_seq) == 0:
+        return False, ""
+
+    last_action: Action = action_seq[-1]
+
+    if last_action["action_type"] != ActionTypes.TYPE:
+        if len(last_k_actions) >= k:
+            if all(
+                [
+                    is_equivalent(action, last_action)
+                    for action in last_k_actions
+                ]
+            ):
+                return True, f"Same action for {k} times"
+
+    else:
+        # check the action sequence
+        if (
+            sum([is_equivalent(action, last_action) for action in action_seq])
+            >= k
+        ):
+            return True, f"Same typing action for {k} times"
+
+    return False, ""
+
+def check_repetitive_actions(
+    trajectory: Trajectory,
+    k: int,
+    current_action_str: str,
+) -> tuple[bool, str]:
+    repetitive_flag, repetitive_str = False, ""
+    last_k_actions = trajectory[1::2][-k:]  # type: ignore[assignment]
+    action_seq = trajectory[1::2]  # type: ignore[assignment]
+
+    if len(action_seq) != 0:
+        last_action: Action = action_seq[-1]
+
+        if last_action["action_type"] != ActionTypes.TYPE:
+            if len(last_k_actions) >= k:
+                if all(
+                    [
+                        is_equivalent(action, last_action)
+                        for action in last_k_actions
+                    ]
+                ):
+                    repetitive_flag, repetitive_str = True, f"You have issued the same action {current_action_str} for {k} times, which means you are in a loop and should try another action."
+
+        else:
+            # check the action sequence
+            if (
+                sum([is_equivalent(action, last_action) for action in action_seq])
+                >= k
+            ):
+                repetitive_flag, repetitive_str =  True, f"You have issued the type action for {k} times, which means you are in a loop and should try another action."
+    return repetitive_flag, repetitive_str

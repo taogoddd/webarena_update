@@ -27,11 +27,11 @@ from browser_env import (
     Trajectory,
     create_stop_action,
 )
-from browser_env.actions import is_equivalent
 from browser_env.auto_login import get_site_comb_from_filepath
 from browser_env.helper_functions import (
     RenderHelper,
     get_action_description,
+    early_stop,
 )
 from evaluation_harness import evaluator_router
 
@@ -163,62 +163,6 @@ def config() -> argparse.Namespace:
     return args
 
 
-def early_stop(
-    trajectory: Trajectory, max_steps: int, thresholds: dict[str, int]
-) -> tuple[bool, str]:
-    """Check whether need to early stop"""
-
-    # reach the max step
-    num_steps = (len(trajectory) - 1) / 2
-    if num_steps >= max_steps:
-        return True, f"Reach max steps {max_steps}"
-
-    last_k_actions: list[Action]
-    action_seq: list[Action]
-
-    # Case: parsing failure for k times
-    k = thresholds["parsing_failure"]
-    last_k_actions = trajectory[1::2][-k:]  # type: ignore[assignment]
-    if len(last_k_actions) >= k:
-        if all(
-            [
-                action["action_type"] == ActionTypes.NONE
-                for action in last_k_actions
-            ]
-        ):
-            return True, f"Failed to parse actions for {k} times"
-
-    # Case: same action for k times
-    k = thresholds["repeating_action"]
-    last_k_actions = trajectory[1::2][-k:]  # type: ignore[assignment]
-    action_seq = trajectory[1::2]  # type: ignore[assignment]
-
-    if len(action_seq) == 0:
-        return False, ""
-
-    last_action: Action = action_seq[-1]
-
-    if last_action["action_type"] != ActionTypes.TYPE:
-        if len(last_k_actions) >= k:
-            if all(
-                [
-                    is_equivalent(action, last_action)
-                    for action in last_k_actions
-                ]
-            ):
-                return True, f"Same action for {k} times"
-
-    else:
-        # check the action sequence
-        if (
-            sum([is_equivalent(action, last_action) for action in action_seq])
-            >= k
-        ):
-            return True, f"Same typing action for {k} times"
-
-    return False, ""
-
-
 def test(
     args: argparse.Namespace,
     agent: Agent | PromptAgent | TeacherForcingAgent,
@@ -286,10 +230,11 @@ def test(
             trajectory: Trajectory = []
             obs, info = env.reset(options={"config_file": config_file})
             state_info: StateInfo = {"observation": obs, "info": info}
-            trajectory.append(state_info)
+            trajectory.append(state_info) 
 
             meta_data = {"action_history": ["None"]}
             while True:
+                reminders = []
                 early_stop_flag, stop_info = early_stop(
                     trajectory, max_steps, early_stop_thresholds
                 )
@@ -307,7 +252,7 @@ def test(
 
                 trajectory.append(action)
 
-                action_str = get_action_description(
+                action_str, parsing_reminder_str = get_action_description(
                     action,
                     state_info["info"]["observation_metadata"],
                     action_set_tag=args.action_set_tag,
@@ -315,10 +260,16 @@ def test(
                     if isinstance(agent, PromptAgent)
                     else None,
                 )
+                reminders.append(parsing_reminder_str)
+
+                # check if the action is repeating, if so, add reminder
+                # TODO
+
                 render_helper.render(
                     action, state_info, meta_data, args.render_screenshot
                 )
                 meta_data["action_history"].append(action_str)
+                meta_data["reminders"] = reminders
 
                 if action["action_type"] == ActionTypes.STOP:
                     break
