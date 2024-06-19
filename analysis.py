@@ -61,6 +61,28 @@ def get_pass_ids():
     print(pass_ids)
     print(len(pass_ids))
 
+def get_error_ids():
+    PATH = "/home/ytliu/github/webarena_update/log_files/log_20240607091908_5880.log"
+
+    with open(PATH, 'r') as file:
+        lines = file.readlines()
+    
+    error_ids = []
+
+    for i in range(2, len(lines)):
+        if "Error" in lines[i]:
+            error_id_line = lines[i-2]
+            if "[Config file]" in error_id_line:
+                error_file = error_id_line.split(': ')[1].strip()
+
+                # get the id from the error file: /tmp/tmp_twajokb/[ID].json
+                error_id = error_file.split('/')[-1].split('.')[0]
+                error_ids.append(error_id)
+    print(error_ids)
+    print(" ".join(error_ids))
+    print(len(error_ids))
+    return error_ids
+
 def filter_tasks():
     path = "/home/ytliu/github/webarena_update/config_files"
     
@@ -98,4 +120,6 @@ def filter_results():
     print(ids)
     print(len(ids))
 
-filter_results()
+# filter_results()
+# get_pass_ids()
+get_error_ids()

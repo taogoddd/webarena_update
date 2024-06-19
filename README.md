@@ -140,6 +140,13 @@ prompt = {
 * `construct`: construct the input feed to an LLM
 * `_extract_action`: given the generation from an LLM, how to extract the phrase that corresponds to the action
 
+## Exclusive for ACI project
+The project is on the aci branch
+
+Here are steps to run the experiments:
+
+1. Deploy the websites locally if possible (follow the instructions above)
+
 ## Citation
 If you use our environment or data, please cite our paper:
 ```

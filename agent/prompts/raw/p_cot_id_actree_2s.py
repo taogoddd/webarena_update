@@ -13,6 +13,7 @@ The actions you can perform fall into several categories:
 Page Operation Actions:
 `click [id]`: This action clicks on an element with a specific id on the webpage.
 `type [id] [content] [press_enter_after=0|1]`: Use this to type the content into the field with id. By default, the "Enter" key is pressed after typing unless press_enter_after is set to 0. The content can not be empty.
+`clear [id]`: Use this to clear the content of the field with id.
 `hover [id]`: Hover over an element with id.
 `press [key_comb]`:  Simulates the pressing of a key combination on the keyboard (e.g., Ctrl+v).
 `scroll [direction]`: Scroll the page up or down. The direction can only have the value of 'up' or 'down'.
