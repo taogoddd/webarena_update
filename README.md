@@ -140,12 +140,15 @@ prompt = {
 * `construct`: construct the input feed to an LLM
 * `_extract_action`: given the generation from an LLM, how to extract the phrase that corresponds to the action
 
-## Exclusive for ACI project
-The project is on the aci branch
-
-Here are steps to run the experiments:
-
-1. Deploy the websites locally if possible (follow the instructions above)
+## For experiments
+1. Deploy / Reset the environment
+2. Configure the URLs (with env_var_setup.sh)
+3. Auto login the environment (with auto_login.py)
+4. Download tokenizer resources
+```bash
+python -c "import nltk; nltk.download('punkt')"
+```
+5. Run some debug examples and then run the experiments (with eval_scripts)
 
 ## Citation
 If you use our environment or data, please cite our paper:
